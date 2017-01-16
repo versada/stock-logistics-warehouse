@@ -19,9 +19,9 @@
 #
 ##############################################################################
 
-from openerp import models, fields, api
-from openerp.exceptions import except_orm
-from openerp.tools.translate import _
+from odoo import models, fields, api
+from odoo.exceptions import except_orm
+from odoo.tools.translate import _
 
 
 class SaleOrder(models.Model):
@@ -66,9 +66,9 @@ class SaleOrder(models.Model):
         return True
 
     @api.multi
-    def action_button_confirm(self):
+    def action_confirm(self):
         self.release_all_stock_reservation()
-        return super(SaleOrder, self).action_button_confirm()
+        return super(SaleOrder, self).action_confirm()
 
     @api.multi
     def action_cancel(self):
@@ -149,36 +149,17 @@ class SaleOrderLine(models.Model):
         reservations.release()
         return True
 
-    def product_id_change(self, cr, uid, ids,
-                          pricelist,
-                          product,
-                          qty=0,
-                          uom=False,
-                          qty_uos=0,
-                          uos=False,
-                          name='',
-                          partner_id=False,
-                          lang=False,
-                          update_tax=True,
-                          date_order=False,
-                          packaging=False,
-                          fiscal_position=False,
-                          flag=False,
-                          context=None):
-        result = super(SaleOrderLine, self).product_id_change(
-            cr, uid, ids, pricelist, product, qty=qty, uom=uom,
-            qty_uos=qty_uos, uos=uos, name=name, partner_id=partner_id,
-            lang=lang, update_tax=update_tax, date_order=date_order,
-            packaging=packaging, fiscal_position=fiscal_position,
-            flag=flag, context=context)
-        if not ids:  # warn only if we change an existing line
+    @api.onchange('product_uom', 'product_uom_qty')
+    def product_uom_change(self):
+        result = super(SaleOrderLine, self).product_uom_change()
+        if not self.ids:  # warn only if we change an existing line
             return result
-        assert len(ids) == 1, "Expected 1 ID, got %r" % ids
-        line = self.browse(cr, uid, ids[0], context=context)
-        if qty != line.product_uom_qty and line.reservation_ids:
+        self.ensure_one()
+        if self.reservation_ids:
             msg = _("As you changed the quantity of the line, "
                     "the quantity of the stock reservation will "
-                    "be automatically adjusted to %.2f.") % qty
+                    "be automatically adjusted to %.2f."
+                    ) % self.product_uom_qty
             msg += "\n\n"
             result.setdefault('warning', {})
             if result['warning'].get('message'):
@@ -194,11 +175,9 @@ class SaleOrderLine(models.Model):
     def write(self, vals):
         block_on_reserve = ('product_id',
                             'product_uom',
-                            'product_uos',
                             'type')
         update_on_reserve = ('price_unit',
-                             'product_uom_qty',
-                             'product_uos_qty')
+                             'product_uom_qty')
         keys = set(vals.keys())
         test_block = keys.intersection(block_on_reserve)
         test_update = keys.intersection(update_on_reserve)
@@ -228,7 +207,6 @@ class SaleOrderLine(models.Model):
                 line.reservation_ids.write(
                     {'price_unit': line.price_unit,
                      'product_uom_qty': line.product_uom_qty,
-                     'product_uos_qty': line.product_uos_qty,
                      }
                 )
         return res
