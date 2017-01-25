@@ -48,13 +48,11 @@ class SaleOrder(models.Model):
     has_stock_reservation = fields.Boolean(
         compute='_stock_reservation',
         readonly=True,
-        multi='stock_reservation',
         store=True,
         string='Has Stock Reservations')
     is_stock_reservable = fields.Boolean(
         compute='_stock_reservation',
         readonly=True,
-        multi='stock_reservation',
         store=True,
         string='Can Have Stock Reservations')
 
