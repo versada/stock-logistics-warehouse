@@ -118,6 +118,7 @@ class SaleOrderLine(models.Model):
 
     @api.multi
     @api.depends('state',
+                 'reservation_ids',
                  'product_id.route_ids',
                  'product_id.type')
     def _is_stock_reservable(self):
