@@ -5,15 +5,13 @@
     default_code: 001yogurt
     name: yogurt
     type: product
-    categ_id: product.product_category_1
+    categ_id: product.product_category_all
     list_price: 100.0
     standard_price: 70.0
     uom_id: product.product_uom_kgm
     uom_po_id: product.product_uom_kgm
     valuation: real_time
     cost_method: average
-    property_stock_account_input: account.o_expense
-    property_stock_account_output: account.o_income
 -
   I update the current stock of the yogurt with 10 kgm
 -
@@ -22,14 +20,13 @@
     product_id: product_yogurt
 -
   !python {model: stock.change.product.qty}: |
-    context['active_id'] = ref('product_yogurt')
-    self.change_product_qty(cr, uid, [ref('change_qty')], context=context)
+    self.browse(ref('change_qty')).change_product_qty()
 -
   In order to test reservation of the sales order, I create a sales order
 -
   !record {model: sale.order, id: sale_reserve_02}:
     partner_id: base.res_partner_2
-    payment_term: account.account_payment_term
+    payment_term_id: account.account_payment_term
 -
   And I create a sales order line
 -
@@ -43,18 +40,19 @@
   And I create a stock reserve for this line
 -
   !python {model: sale.stock.reserve}: |
-    active_id = ref('sale_line_reserve_02_01')
-    context['active_id'] = active_id
-    context['active_ids'] = [active_id]
-    context['active_model'] = 'sale.order.line'
-    wizard_id = self.create(cr, uid, {}, context=context)
-    self.button_reserve(cr, uid, [wizard_id], context=context)
+    active_id = ref('sale_reserve_02')
+    wizard_id = self.with_context(
+      active_id=active_id,
+      active_ids=[active_id],
+      active_model='sale.order').create({})
+    wizard_id.button_reserve()
 -
   I check Virtual stock of yogurt after update reservation
 -
   !python {model: product.product}: |
-    product = self.browse(cr, uid, ref('product_yogurt'), context=context)
-    assert product.virtual_available == 6, "Stock is not updated."
+    product = self.browse(ref('product_yogurt'))
+    product.refresh()
+    assert product.virtual_available == 6.0, "Stock is not updated."
 -
   I set product_12 to MTO (doesn't work)
 -
@@ -65,9 +63,9 @@
   I set MTO for real
 -
   !python {model: product.product}: |
-    product = self.browse(cr, uid, ref('product.product_product_12'), context=context)
-    self.write(cr, uid, ref('product.product_product_12'),
-               {'route_ids': [(6, False, [ref('stock.route_warehouse0_mto')])]}, context=context)
+    product = self.browse(ref('product.product_product_12'))
+    product.write(
+      {'route_ids': [(6, False, [ref('stock.route_warehouse0_mto')])]})
 -
   And I create a MTO sales order line
 -
@@ -81,20 +79,18 @@
   And I try to create a stock reserve for this MTO line
 -
   !python {model: sale.stock.reserve}: |
-    active_id = ref('sale_line_reserve_02_02')
-    context['active_id'] = active_id
-    context['active_ids'] = [active_id]
-    context['active_model'] = 'sale.order.line'
-    wizard_id = self.create(cr, uid, {}, context=context)
-    self.button_reserve(cr, uid, [wizard_id], context=context)
+    active_id = ref('sale_reserve_02')
+    wizard_id = self.with_context(
+      active_id=active_id,
+      active_ids=[active_id],
+      active_model='sale.order').create({})
+    wizard_id.button_reserve()
 -
   I should not have a stock reservation for a MTO line
 -
   !python {model: stock.reservation}: |
     reserv_ids = self.search(
-        cr, uid,
-        [('sale_line_id', '=', ref('sale_line_reserve_02_02'))],
-        context=context)
+        [('sale_line_id', '=', ref('sale_line_reserve_02_02'))])
     assert not reserv_ids, "No stock reservation should be created for MTO lines"
 -
   And I change the quantity in the first line
@@ -106,16 +102,18 @@
   I check Virtual stock of yogurt after change of reservations
 -
   !python {model: product.product}: |
-    product = self.browse(cr, uid, ref('product_yogurt'), context=context)
-    assert product.virtual_available == 5, "Stock is not updated."
+    product = self.browse(ref('product_yogurt'))
+    product.refresh()
+    assert product.virtual_available == 5.0, "Stock is not updated."
 -
   I release the sales order's reservations for the first line
 -
   !python {model: sale.order.line}: |
-    self.release_stock_reservation(cr, uid, [ref('sale_line_reserve_02_01')], context=context)
+    self.browse(ref('sale_line_reserve_02_01')).release_stock_reservation()
 -
   I check Virtual stock of yogurt after release of reservations
 -
   !python {model: product.product}: |
-    product = self.browse(cr, uid, ref('product_yogurt'), context=context)
-    assert product.virtual_available == 10, "Stock is not updated."
+    product = self.browse(ref('product_yogurt'))
+    product.refresh()
+    assert product.virtual_available == 10.0, "Stock is not updated."
